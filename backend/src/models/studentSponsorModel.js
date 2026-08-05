@@ -115,13 +115,12 @@ module.exports = {
     deleteSponsorship,
     getStudentSponsors
 };
-async function getStudentSponsors(studentId) {s
+async function getStudentSponsors(studentId) {
     const result = await query(
         `
         SELECT
             ss.*,
-            s.full_name,
-            s.organization_name
+            COALESCE(s.organization_name, s.full_name) AS sponsor_name
         FROM student_sponsors ss
         JOIN sponsors s
             ON s.id = ss.sponsor_id

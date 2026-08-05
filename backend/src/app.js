@@ -184,8 +184,7 @@ app.use(
   studentSponsorRoutes
 );
 
-// Upload route currently disabled
-// app.use('/api/upload', uploadRoutes);
+app.use('/api/upload', uploadRoutes);
 
 // ==========================================
 // ERROR HANDLING

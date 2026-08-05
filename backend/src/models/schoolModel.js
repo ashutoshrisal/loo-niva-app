@@ -6,11 +6,20 @@ async function getAllSchools() {
     SELECT
       s.id,
       s.name,
+      s.address,
+      s.municipality,
+      s.district,
+      s.province,
+      s.principal_name,
+      s.phone,
+      s.email,
+      s.established_year,
+      s.is_active,
       COUNT(st.id) AS students
     FROM schools s
     LEFT JOIN students st
       ON st.school_id = s.id
-    GROUP BY s.id, s.name
+    GROUP BY s.id
     ORDER BY s.name;
   `);
 

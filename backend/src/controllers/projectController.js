@@ -14,9 +14,9 @@ async function listProjects(req, res) {
     params.push(category);
     conditions.push(`category = $${params.length}`);
   }
-  if (search) {
+if (search) {
     params.push(`%${search}%`);
-    conditions.push(`(title ILIKE $${params.length} OR target_location ILIKE $${params.length})`);
+    conditions.push(`(title ILIKE $${params.length} OR description ILIKE $${params.length})`);
   }
 
   // Viewers/Donors only ever see completed projects (read-only public view).
@@ -53,14 +53,33 @@ async function getProject(req, res) {
   );
   if (!result.rows[0]) return res.status(404).json({ success: false, message: 'Project not found' });
 
-  const staff = await query(
-    `SELECT ps.id, u.full_name, u.email, ps.assigned_role
-     FROM project_staff ps JOIN users u ON u.id = ps.user_id
+  // Load project staff defensively against schema differences.
+  // The `project_staff` table/columns may differ across environments
+  // (e.g. `designation` vs `assigned_role`), so we detect the actual
+  // columns before building the SELECT. If the table is unavailable,
+  // the project itself must still load — we return an empty staff list.
+  let staff = [];
+
+try {
+  const staffResult = await query(
+    `SELECT
+       ps.id,
+       ps.user_id,
+       u.full_name,
+       u.email
+     FROM project_staff ps
+     JOIN users u ON u.id = ps.user_id
      WHERE ps.project_id = $1`,
     [req.params.id]
   );
 
-  res.json({ success: true, data: { ...result.rows[0], staff: staff.rows } });
+  staff = staffResult.rows;
+} catch (err) {
+  console.error('[getProject] Failed to load project staff:', err.message);
+  staff = [];
+}
+
+  res.json({ success: true, data: { ...result.rows[0], staff } });
 }
 
 // POST /api/projects  (super_admin, project_manager)
@@ -201,13 +220,13 @@ async function deleteProject(req, res) {
 
 // POST /api/projects/:id/staff  (assign staff)
 async function assignStaff(req, res) {
-  const { user_id, assigned_role } = req.body;
+  const { user_id, designation } = req.body;
   const result = await query(
-    `INSERT INTO project_staff (project_id, user_id, assigned_role)
+    `INSERT INTO project_staff (project_id, user_id, designation)
      VALUES ($1, $2, $3)
-     ON CONFLICT (project_id, user_id) DO UPDATE SET assigned_role = EXCLUDED.assigned_role
+     ON CONFLICT (project_id, user_id) DO UPDATE SET designation = EXCLUDED.designation
      RETURNING *`,
-    [req.params.id, user_id, assigned_role || null]
+    [req.params.id, user_id, designation || null]
   );
   res.status(201).json({ success: true, data: result.rows[0] });
 }

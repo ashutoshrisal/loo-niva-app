@@ -62,10 +62,17 @@ async function login(req, res) {
 
     const user = result.rows[0];
 
-    const valid = await bcrypt.compare(
-      password,
-      user.password_hash
-    );
+if (!user) {
+  return res.status(401).json({
+    success: false,
+    message: 'Invalid email or password',
+  });
+}
+
+const valid = await bcrypt.compare(
+  password,
+  user.password_hash
+);
 
     if (!valid) {
       return res.status(401).json({
