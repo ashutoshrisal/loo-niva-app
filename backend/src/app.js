@@ -44,8 +44,9 @@ app.use(
     origin: [
       'http://localhost',
       'http://localhost:3000',
-      'http://192.168.1.23:3000',
+      
       'https://loo-niva-app-ui6q.vercel.app',
+      'http://192.168.1.17:3000',
     ],
     credentials: true,
   })

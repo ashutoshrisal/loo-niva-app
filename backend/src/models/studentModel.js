@@ -23,7 +23,15 @@ async function getAllStudents() {
 
 async function getStudent(id) {
     const result = await query(
-        `SELECT * FROM students WHERE id = $1`,
+        `
+        SELECT
+            s.*,
+            sc.name AS school
+        FROM students s
+        LEFT JOIN schools sc
+            ON sc.id = s.school_id
+        WHERE s.id = $1
+        `,
         [id]
     );
 
@@ -42,9 +50,10 @@ async function createStudent(student) {
             grade,
             section,
             school_id,
-            status
+            status,
+            photo_url
         )
-        VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
         RETURNING *;
         `,
         [
@@ -55,7 +64,8 @@ async function createStudent(student) {
             student.grade,
             student.section,
             student.school_id,
-            student.status
+            student.status,
+            student.photo_url || null
         ]
     );
 
@@ -76,6 +86,7 @@ grade=$5,
 section=$6,
 school_id=$7,
 status=$8,
+photo_url=$10,
 updated_at=NOW()
 
 WHERE id=$9
@@ -91,7 +102,8 @@ student.grade,
 student.section,
 student.school_id,
 student.status,
-id
+id,
+student.photo_url || null
 ]
 );
 
