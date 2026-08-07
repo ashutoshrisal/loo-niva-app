@@ -11,9 +11,11 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useSidebar } from '@/context/SidebarContext';
 
 export default function Navbar({ title }: { title?: string }) {
   const { user, logout } = useAuth();
+  const { openMobile } = useSidebar();
 
   const [open, setOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -41,27 +43,31 @@ export default function Navbar({ title }: { title?: string }) {
 
   return (
     <header className="sticky top-0 z-30 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-200 dark:border-slate-800">
-      <div className="flex items-center justify-between px-6 py-4">
+<div className="flex items-center justify-between gap-3 px-4 py-4 md:px-6">
 
         {/* Left */}
-        <div className="flex items-center gap-4">
+      <div className="flex items-center gap-2 md:gap-4 min-w-0">
 
-          <button className="md:hidden p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800">
+          <button
+            onClick={openMobile}
+            className="md:hidden shrink-0 p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-slate-800"
+            aria-label="Open menu"
+          >
             <Menu size={22} />
           </button>
 
           <img
             src="/logo.jpg"
             alt="Loo Niva"
-            className="h-10 w-10 rounded-xl object-contain"
+            className="hidden xs:block h-8 w-8 md:h-10 md:w-10 rounded-xl object-contain shrink-0"
           />
 
-          <div>
-            <h1 className="text-2xl font-bold text-slate-800 dark:text-white">
+          <div className="min-w-0">
+            <h1 className="text-base sm:text-lg md:text-2xl font-bold text-slate-800 dark:text-white truncate">
               {title || 'Dashboard'}
             </h1>
 
-            <p className="text-sm text-gray-500">
+            <p className="hidden sm:block text-xs md:text-sm text-gray-500 truncate">
               Welcome back 👋
             </p>
           </div>
@@ -88,8 +94,8 @@ export default function Navbar({ title }: { title?: string }) {
 
         </div>
 
-        {/* Right */}
-        <div className="flex items-center gap-3">
+{/* Right */}
+        <div className="flex items-center gap-1 md:gap-3 shrink-0">
 
           {/* Notifications */}
           <div className="relative">

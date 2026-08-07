@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import Button from '@/components/ui/Button';
 import Card from '@/components/ui/Card';
@@ -13,6 +13,10 @@ import {
   ShieldCheck
 } from 'lucide-react';
 
+const API_BASE =
+  process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:5000/api';
+
 export default function LoginPage() {
   const { login } = useAuth();
 
@@ -20,6 +24,40 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [stats, setStats] = useState({
+    projects: 0,
+    beneficiaries: 0,
+    districts: 0,
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [statsError, setStatsError] = useState('');
+
+  useEffect(() => {
+    const loadStats = async () => {
+      try {
+        const response = await fetch(`${API_BASE}/public/stats`);
+        const result = await response.json();
+
+        if (result.success) {
+          setStats({
+            projects: result.data?.projects || 0,
+            beneficiaries: result.data?.beneficiaries || 0,
+            districts: result.data?.districts || 0,
+          });
+        } else {
+          setStatsError('Failed to load statistics.');
+        }
+      } catch (err) {
+        console.error('Failed to load public statistics:', err);
+        setStatsError('Failed to load statistics.');
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+
+    loadStats();
+  }, []);
 async function handleSubmit(e: React.FormEvent) {
   e.preventDefault();
 
@@ -64,9 +102,11 @@ async function handleSubmit(e: React.FormEvent) {
 
         <div className="grid grid-cols-2 gap-8 mt-16">
 
-          <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/10">
+<div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/10">
             <FolderKanban size={34} />
-            <h2 className="text-4xl font-bold mt-4">40+</h2>
+            <h2 className="text-4xl font-bold mt-4">
+              {statsLoading ? '...' : stats.projects}
+            </h2>
             <p className="text-white/70 mt-1">
               Active Projects
             </p>
@@ -74,7 +114,9 @@ async function handleSubmit(e: React.FormEvent) {
 
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/10">
             <Users size={34} />
-            <h2 className="text-4xl font-bold mt-4">2500+</h2>
+            <h2 className="text-4xl font-bold mt-4">
+              {statsLoading ? '...' : stats.beneficiaries}
+            </h2>
             <p className="text-white/70 mt-1">
               Beneficiaries
             </p>
@@ -82,7 +124,9 @@ async function handleSubmit(e: React.FormEvent) {
 
           <div className="bg-white/10 backdrop-blur-lg rounded-3xl p-6 border border-white/10">
             <HeartHandshake size={34} />
-            <h2 className="text-4xl font-bold mt-4">15+</h2>
+            <h2 className="text-4xl font-bold mt-4">
+              {statsLoading ? '...' : stats.districts}
+            </h2>
             <p className="text-white/70 mt-1">
               Districts Covered
             </p>

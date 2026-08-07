@@ -1,353 +1,968 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import StatCard from '@/components/StatCard';
+import LSPAnalytics from '@/components/lsp/LSPAnalytics';
 import api from '@/lib/api';
 import {
   GraduationCap,
   School,
   Handshake,
+  HeartHandshake,
   CalendarCheck,
-  FileText,
-  FolderOpen,
+  Plus,
+  Search,
+  Eye,
+  Pencil,
+  Trash2,
+  Download,
+  Loader2,
 } from 'lucide-react';
 
-interface Student {
-  id: string;
-  full_name: string;
-  grade: string;
-  school: string | null;
-  status: string;
-}
+type SectionKey =
+  | 'students'
+  | 'active-students'
+  | 'schools'
+  | 'sponsors'
+  | 'sponsorships';
 
-interface DashboardStats {
-  students: number;
-  schools: number;
-  sponsors: number;
+interface Summary {
+  totalStudents: number;
+  totalSchools: number;
+  totalSponsors: number;
+  totalSponsorships: number;
   activeStudents: number;
 }
 
-export default function LSPPage() {
-  const [students, setStudents] = useState<Student[]>([]);
+interface Student {
+  id: string;
+  student_code: string;
+  admission_number: string;
+  full_name: string;
+  gender: string;
+  grade: string;
+  section: string;
+  status: string;
+  school: string | null;
+}
 
-  const [stats, setStats] = useState<DashboardStats>({
-    students: 0,
-    schools: 0,
-    sponsors: 0,
+interface School {
+  id: string;
+  name: string;
+  municipality: string | null;
+  district: string | null;
+  province: string | null;
+  principal_name: string | null;
+  phone: string | null;
+  email: string | null;
+  is_active: boolean | null;
+  students: number;
+}
+
+interface Sponsor {
+  id: string;
+  full_name: string;
+  organization_name?: string | null;
+  country?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  sponsor_type?: string | null;
+  status?: string | null;
+}
+
+interface Sponsorship {
+  id: string;
+  student_name: string;
+  sponsor_name: string;
+  monthly_amount: number;
+  sponsorship_start: string;
+  sponsorship_end: string;
+  status: string;
+}
+
+const SECTION_KEYS: SectionKey[] = [
+  'students',
+  'active-students',
+  'schools',
+  'sponsors',
+  'sponsorships',
+];
+
+const SECTION_LABELS: Record<SectionKey, string> = {
+  students: 'Students',
+  'active-students': 'Active Students',
+  schools: 'Schools',
+  sponsors: 'Sponsors',
+  sponsorships: 'Sponsorships',
+};
+
+const SECTION_DESCRIPTIONS: Record<SectionKey, string> = {
+  students: 'Manage students enrolled in the Learning Support Program.',
+  'active-students':
+    'View students currently active in the Learning Support Program.',
+  schools: 'Manage schools participating in the Learning Support Program.',
+  sponsors: 'Manage sponsors supporting children through the program.',
+  sponsorships: 'Manage student sponsorship relationships.',
+};
+
+const STATUS_FILTERS = ['all', 'active', 'inactive'];
+const GRADES = ['all', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'];
+
+export default function LSPPage() {
+  return (
+    <Suspense fallback={<LSPLoading />}>
+      <LSPContent />
+    </Suspense>
+  );
+}
+
+function LSPLoading() {
+  return (
+    <>
+      <Navbar title="Learning Support Program" />
+      <div className="p-8 text-center text-gray-500">Loading...</div>
+    </>
+  );
+}
+
+function LSPContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const rawSection = searchParams.get('section');
+  const section: SectionKey =
+    rawSection && SECTION_KEYS.includes(rawSection as SectionKey)
+      ? (rawSection as SectionKey)
+      : 'students';
+
+  const [summary, setSummary] = useState<Summary>({
+    totalStudents: 0,
+    totalSchools: 0,
+    totalSponsors: 0,
+    totalSponsorships: 0,
     activeStudents: 0,
   });
 
+  const [students, setStudents] = useState<Student[]>([]);
+  const [schools, setSchools] = useState<School[]>([]);
+  const [sponsors, setSponsors] = useState<Sponsor[]>([]);
+  const [sponsorships, setSponsorships] = useState<Sponsorship[]>([]);
+  const [sponsorStudentCount, setSponsorStudentCount] = useState<
+    Record<string, number>
+  >({});
+
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  // Search + filters
+  const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [gradeFilter, setGradeFilter] = useState('all');
+  const [schoolFilter, setSchoolFilter] = useState('all');
+
+  // Delete confirmation modal
+  const [deleteTarget, setDeleteTarget] = useState<{
+    type: 'students' | 'schools' | 'sponsors' | 'sponsorships';
+    id: string;
+    label: string;
+  } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+
+  async function loadAll() {
+    setLoading(true);
+    setError('');
+    try {
+      const [summaryRes, studentsRes, schoolsRes, sponsorsRes, sponsorshipsRes] =
+        await Promise.all([
+          api.get('/dashboard/summary'),
+          api.get('/students'),
+          api.get('/schools'),
+          api.get('/sponsors'),
+          api.get('/sponsorships'),
+        ]);
+
+      setSummary(summaryRes.data.data);
+      setStudents(studentsRes.data.data || []);
+      setSchools(schoolsRes.data.data || []);
+      setSponsors(sponsorsRes.data.data || []);
+
+      const sponsorshipsData = sponsorshipsRes.data.data || [];
+      setSponsorships(sponsorshipsData);
+
+      const counts: Record<string, number> = {};
+      sponsorshipsData.forEach((item: any) => {
+        if (item.sponsor_id) {
+          counts[item.sponsor_id] = (counts[item.sponsor_id] || 0) + 1;
+        }
+      });
+      setSponsorStudentCount(counts);
+    } catch (err) {
+      console.error(err);
+      setError('Failed to load data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(() => {
-    loadStudents();
-    loadStats();
+    loadAll();
   }, []);
 
-  async function loadStudents() {
+  function selectSection(key: SectionKey) {
+    // Reset filters when switching sections
+    setSearch('');
+    setStatusFilter('all');
+    setGradeFilter('all');
+    setSchoolFilter('all');
+    router.push(`/lsp?section=${key}`, { scroll: false });
+  }
+
+  const activeStudents = useMemo(
+    () => students.filter((s) => s.status === 'active'),
+    [students]
+  );
+
+  // Filtering logic
+  const filteredStudents = useMemo(() => {
+    let list = section === 'active-students' ? activeStudents : students;
+
+    if (statusFilter !== 'all') {
+      list = list.filter((s) => s.status === statusFilter);
+    }
+    if (gradeFilter !== 'all') {
+      list = list.filter((s) => s.grade === gradeFilter);
+    }
+    if (schoolFilter !== 'all') {
+      list = list.filter((s) => s.school === schoolFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.full_name.toLowerCase().includes(q) ||
+          s.student_code.toLowerCase().includes(q) ||
+          (s.admission_number || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [students, activeStudents, section, search, statusFilter, gradeFilter, schoolFilter]);
+
+  const filteredSchools = useMemo(() => {
+    let list = schools;
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (s) =>
+          s.name.toLowerCase().includes(q) ||
+          (s.municipality || '').toLowerCase().includes(q) ||
+          (s.district || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [schools, search]);
+
+  const filteredSponsors = useMemo(() => {
+    let list = sponsors;
+    if (statusFilter !== 'all') {
+      list = list.filter((s) => (s.status || '') === statusFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (sp) =>
+          sp.full_name.toLowerCase().includes(q) ||
+          (sp.organization_name || '').toLowerCase().includes(q) ||
+          (sp.country || '').toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [sponsors, search, statusFilter]);
+
+  const filteredSponsorships = useMemo(() => {
+    let list = sponsorships;
+    if (statusFilter !== 'all') {
+      list = list.filter((s) => s.status === statusFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (item) =>
+          item.student_name.toLowerCase().includes(q) ||
+          item.sponsor_name.toLowerCase().includes(q)
+      );
+    }
+    return list;
+  }, [sponsorships, search, statusFilter]);
+
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
     try {
-      const res = await api.get('/students');
-      setStudents(res.data.data.slice(0, 5));
-    } catch (err) {
+      await api.delete(`/${deleteTarget.type}/${deleteTarget.id}`);
+      setDeleteTarget(null);
+      await loadAll();
+    } catch (err: any) {
       console.error(err);
+      alert(
+        err?.response?.data?.message || 'Failed to delete. Please try again.'
+      );
+    } finally {
+      setDeleting(false);
     }
   }
 
-  async function loadStats() {
-    try {
-      const res = await api.get('/dashboard/stats');
-      setStats(res.data.data);
-    } catch (err) {
-      console.error(err);
-    }
+  function exportStudentsCSV() {
+    const rows = filteredStudents.map((s) => ({
+      Name: s.full_name,
+      Code: s.student_code,
+      Admission: s.admission_number,
+      Gender: s.gender,
+      Grade: s.grade,
+      Section: s.section,
+      School: s.school || '',
+      Status: s.status,
+    }));
+    const header = Object.keys(rows[0] || {}).join(',');
+    const body = rows
+      .map((r) =>
+        Object.values(r)
+          .map((v) => `"${String(v).replace(/"/g, '""')}"`)
+          .join(',')
+      )
+      .join('\n');
+    const blob = new Blob([[header, body].join('\n')], {
+      type: 'text/csv;charset=utf-8;',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'students.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   }
 
-  async function deleteStudent(id: string) {
-    const confirmed = window.confirm(
-      'Are you sure you want to delete this student?'
-    );
+  const statCards = [
+    {
+      key: 'students' as SectionKey,
+      label: 'Students',
+      value: summary.totalStudents,
+      icon: GraduationCap,
+      accent: 'blue' as const,
+    },
+    {
+      key: 'schools' as SectionKey,
+      label: 'Schools',
+      value: summary.totalSchools,
+      icon: School,
+      accent: 'green' as const,
+    },
+    {
+      key: 'sponsors' as SectionKey,
+      label: 'Sponsors',
+      value: summary.totalSponsors,
+      icon: Handshake,
+      accent: 'blue' as const,
+    },
+    {
+      key: 'sponsorships' as SectionKey,
+      label: 'Sponsorships',
+      value: summary.totalSponsorships,
+      icon: HeartHandshake,
+      accent: 'green' as const,
+    },
+    {
+      key: 'active-students' as SectionKey,
+      label: 'Active Students',
+      value: summary.activeStudents,
+      icon: CalendarCheck,
+      accent: 'blue' as const,
+    },
+  ];
 
-    if (!confirmed) return;
+  const addLink = {
+    students: '/lsp/students/add',
+    'active-students': '/lsp/students/add',
+    schools: '/lsp/schools/add',
+    sponsors: '/lsp/sponsors/add',
+    sponsorships: '/lsp/sponsorships/add',
+  }[section];
 
-    try {
-      await api.delete(`/students/${id}`);
-
-      alert('Student deleted successfully.');
-
-      loadStudents();
-      loadStats();
-    } catch (err) {
-      console.error(err);
-      alert('Failed to delete student.');
-    }
-  }
+  const showStudentsFilters = section === 'students' || section === 'active-students';
+  const showSponsorsFilters = section === 'sponsors';
+  const showSponsorshipsFilters = section === 'sponsorships';
 
   return (
     <>
       <Navbar title="Learning Support Program" />
 
-      <div className="p-8 space-y-8">
-
+      <div className="p-4 md:p-8 space-y-8">
         <div>
-          <h1 className="text-3xl font-bold">
-            Learning Support Program
-          </h1>
-
+          <h1 className="text-3xl font-bold">Learning Support Program</h1>
           <p className="text-gray-500 mt-2">
-            Manage students, attendance, schools, sponsors and reports.
+            Manage students, schools, sponsors and sponsorships.
           </p>
         </div>
 
-        {/* Dashboard Statistics */}
-
-        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-
-          <StatCard
-            label="Students"
-            value={stats.students.toString()}
-            icon={GraduationCap}
-          />
-
-          <StatCard
-            label="Schools"
-            value={stats.schools.toString()}
-            icon={School}
-            accent="green"
-          />
-
-          <StatCard
-            label="Sponsors"
-            value={stats.sponsors.toString()}
-            icon={Handshake}
-          />
-
-          <StatCard
-            label="Active Students"
-            value={stats.activeStudents.toString()}
-            icon={CalendarCheck}
-            accent="green"
-          />
-
-          <StatCard
-            label="Reports"
-            value="82"
-            icon={FileText}
-          />
-
-          <StatCard
-            label="Documents"
-            value="561"
-            icon={FolderOpen}
-            accent="green"
-          />
-
+        {/* Statistics — clickable cards */}
+        <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-5">
+          {statCards.map((card) => {
+            const isActive = section === card.key;
+            return (
+              <button
+                key={card.key}
+                type="button"
+                onClick={() => selectSection(card.key)}
+                className={`text-left ${
+                  isActive ? 'ring-2 ring-indigo-500 rounded-3xl' : ''
+                }`}
+              >
+                <StatCard
+                  label={card.label}
+                  value={card.value}
+                  icon={card.icon}
+                  accent={card.accent}
+                />
+              </button>
+            );
+          })}
         </div>
 
-        {/* Quick Actions */}
-
-        <div>
-
-          <h2 className="text-2xl font-bold mb-5">
-            Quick Actions
-          </h2>
-
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-
-            <Link
-              href="/lsp/students/add"
-              className="rounded-2xl border bg-white p-6 text-left shadow-sm hover:shadow-lg hover:-translate-y-1 transition"
-            >
-              <h3 className="font-semibold text-lg">
-                👨‍🎓 Add Student
-              </h3>
-
-              <p className="text-sm text-gray-500 mt-2">
-                Register a new student.
-              </p>
-            </Link>
-
-            <Link
-  href="/lsp/sponsors"
-  className="rounded-2xl border bg-white p-6 text-left shadow-sm hover:shadow-lg hover:-translate-y-1 transition"
->
-  <h3 className="font-semibold text-lg">
-    🤝 Sponsors
-  </h3>
-
-  <p className="text-sm text-gray-500 mt-2">
-    Manage NGO sponsors and donor information.
-  </p>
-</Link>
-           <Link
-  href="/lsp/sponsors/add"
-  className="rounded-2xl border bg-white p-6 text-left shadow-sm hover:shadow-lg hover:-translate-y-1 transition"
->
-<Link
-  href="/lsp/sponsorships"
-  className="rounded-2xl border bg-white p-6 text-left shadow-sm hover:shadow-lg hover:-translate-y-1 transition"
->
-  <h3 className="font-semibold text-lg">
-    💳 Sponsorships
-  </h3>
-
-  <p className="text-sm text-gray-500 mt-2">
-    Assign sponsors to students and manage sponsorships.
-  </p>
-</Link>
-
-  <p className="text-sm text-gray-500 mt-2">
-    Register a new sponsor.
-  </p>
-</Link>
-
-            <button className="rounded-2xl border bg-white p-6 text-left shadow-sm hover:shadow-lg transition">
-              🏫 Add School
-            </button>
-
-            <button className="rounded-2xl border bg-white p-6 text-left shadow-sm hover:shadow-lg transition">
-              📄 Reports
-            </button>
-
-            <button className="rounded-2xl border bg-white p-6 text-left shadow-sm hover:shadow-lg transition">
-              📂 Documents
-            </button>
-
-          </div>
-
-        </div>
-
-        {/* Recent Students */}
-
+        {/* Analytics section */}
         <div className="rounded-3xl border bg-white p-6 shadow-sm">
+          <div className="mb-6">
+            <h2 className="text-2xl font-bold">Analytics</h2>
+            <p className="text-gray-500 text-sm">Program overview from live data.</p>
+          </div>
+          <LSPAnalytics />
+        </div>
 
-          <div className="flex justify-between items-center mb-6">
+        {/* Section content */}
+        {loading ? (
+          <div className="rounded-3xl border bg-white p-12 text-center shadow-sm">
+            <Loader2 className="mx-auto animate-spin text-blue-600" size={32} />
+            <p className="text-gray-500 mt-4">Loading data...</p>
+          </div>
+        ) : error ? (
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-12 text-center shadow-sm">
+            <p className="text-red-700">{error}</p>
+            <button
+              onClick={loadAll}
+              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg"
+            >
+              Retry
+            </button>
+          </div>
+        ) : (
+          <div className="rounded-3xl border bg-white p-6 shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+              <div>
+                <h2 className="text-2xl font-bold">{SECTION_LABELS[section]}</h2>
+                <p className="text-gray-500 text-sm">
+                  {SECTION_DESCRIPTIONS[section]}
+                </p>
+              </div>
 
-            <div>
-
-              <h2 className="text-2xl font-bold">
-                Recent Students
-              </h2>
-
-              <p className="text-gray-500 text-sm">
-                Recently added students.
-              </p>
-
+              <div className="flex items-center gap-3">
+                {section === 'students' && (
+                  <button
+                    onClick={exportStudentsCSV}
+                    className="flex items-center gap-2 border border-gray-300 rounded-lg px-4 py-2 text-sm font-medium hover:bg-gray-50"
+                  >
+                    <Download size={16} /> Export
+                  </button>
+                )}
+                <Link
+                  href={addLink}
+                  className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+                >
+                  <Plus size={16} /> Add {SECTION_LABELS[section]}
+                </Link>
+              </div>
             </div>
 
-            <Link
-              href="/lsp/students"
-              className="px-4 py-2 rounded-xl bg-blue-600 text-white hover:bg-blue-700"
-            >
-              View All
-            </Link>
+            {/* Search + filters */}
+            <div className="flex flex-col lg:flex-row gap-3 mb-6">
+              <div className="relative flex-1">
+                <Search
+                  size={18}
+                  className="absolute left-3 top-3 text-gray-400"
+                />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={`Search ${SECTION_LABELS[section].toLowerCase()}...`}
+                  className="w-full border rounded-lg pl-10 pr-4 py-2.5"
+                />
+              </div>
 
-          </div>
-
-          <div className="overflow-x-auto">
-
-            <table className="w-full">
-
-              <thead>
-
-                <tr className="border-b">
-
-                  <th className="text-left py-4">Student</th>
-                  <th className="text-left">School</th>
-                  <th className="text-left">Grade</th>
-                  <th className="text-left">Status</th>
-                  <th className="text-left">Actions</th>
-
-                </tr>
-
-              </thead>
-
-              <tbody>
-
-                {students.map((student) => (
-
-                  <tr
-                    key={student.id}
-                    className="border-b hover:bg-gray-50 transition"
+              {showStudentsFilters && (
+                <>
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="border rounded-lg px-3 py-2.5"
                   >
+                    {STATUS_FILTERS.map((s) => (
+                      <option key={s} value={s}>
+                        {s === 'all' ? 'All statuses' : s.charAt(0).toUpperCase() + s.slice(1)}
+                      </option>
+                    ))}
+                  </select>
 
-                    <td className="py-4">
+                  <select
+                    value={gradeFilter}
+                    onChange={(e) => setGradeFilter(e.target.value)}
+                    className="border rounded-lg px-3 py-2.5"
+                  >
+                    {GRADES.map((g) => (
+                      <option key={g} value={g}>
+                        {g === 'all' ? 'All grades' : `Grade ${g}`}
+                      </option>
+                    ))}
+                  </select>
 
-                      <div className="flex items-center gap-3">
+                  <select
+                    value={schoolFilter}
+                    onChange={(e) => setSchoolFilter(e.target.value)}
+                    className="border rounded-lg px-3 py-2.5"
+                  >
+                    <option value="all">All schools</option>
+                    {schools.map((sch) => (
+                      <option key={sch.id} value={sch.name}>
+                        {sch.name}
+                      </option>
+                    ))}
+                  </select>
+                </>
+              )}
 
-                        <div className="w-10 h-10 rounded-full bg-gradient-to-r from-blue-600 to-green-500 text-white flex items-center justify-center font-bold">
+              {showSponsorsFilters && (
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="border rounded-lg px-3 py-2.5"
+                >
+                  {STATUS_FILTERS.map((s) => (
+                    <option key={s} value={s}>
+                      {s === 'all' ? 'All statuses' : s.charAt(0).toUpperCase() + s.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              )}
 
-                          {student.full_name.charAt(0)}
+              {showSponsorshipsFilters && (
+                <select
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value)}
+                  className="border rounded-lg px-3 py-2.5"
+                >
+                  {['all', 'active', 'paused', 'completed', 'cancelled'].map((s) => (
+                    <option key={s} value={s}>
+                      {s === 'all' ? 'All statuses' : s.charAt(0).toUpperCase() + s.slice(1)}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
 
-                        </div>
+            {(section === 'students' || section === 'active-students') && (
+              <StudentTable
+                students={filteredStudents}
+                onDelete={(id, label) =>
+                  setDeleteTarget({ type: 'students', id, label })
+                }
+              />
+            )}
 
-                        <Link
-                          href={`/lsp/students/${student.id}`}
-                          className="font-semibold text-blue-600 hover:underline"
-                        >
-                          {student.full_name}
-                        </Link>
+            {section === 'schools' && (
+              <SchoolTable
+                schools={filteredSchools}
+                onDelete={(id, label) =>
+                  setDeleteTarget({ type: 'schools', id, label })
+                }
+              />
+            )}
 
-                      </div>
+            {section === 'sponsors' && (
+              <SponsorTable
+                sponsors={filteredSponsors}
+                sponsorStudentCount={sponsorStudentCount}
+                onDelete={(id, label) =>
+                  setDeleteTarget({ type: 'sponsors', id, label })
+                }
+              />
+            )}
 
-                    </td>
-
-                    <td>{student.school || '-'}</td>
-
-                    <td>{student.grade}</td>
-
-                    <td>
-
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                          student.status === 'active'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-red-100 text-red-700'
-                        }`}
-                      >
-                        {student.status.charAt(0).toUpperCase() +
-                          student.status.slice(1)}
-                      </span>
-
-                    </td>
-
-                    <td className="space-x-3">
-
-                      <Link
-                        href={`/lsp/students/${student.id}`}
-                        className="text-blue-600 hover:underline"
-                      >
-                        View
-                      </Link>
-
-                      <Link
-                        href={`/lsp/students/edit/${student.id}`}
-                        className="text-green-600 hover:underline"
-                      >
-                        Edit
-                      </Link>
-
-                      <button
-                        onClick={() => deleteStudent(student.id)}
-                        className="text-red-600 hover:underline"
-                      >
-                        Delete
-                      </button>
-
-                    </td>
-
-                  </tr>
-
-                ))}
-
-              </tbody>
-
-            </table>
-
+            {section === 'sponsorships' && (
+              <SponsorshipTable
+                sponsorships={filteredSponsorships}
+                onDelete={(id, label) =>
+                  setDeleteTarget({ type: 'sponsorships', id, label })
+                }
+              />
+            )}
           </div>
-
-        </div>
-
+        )}
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-bold">Confirm Delete</h3>
+            <p className="mt-3 text-gray-600">
+              Are you sure you want to delete{' '}
+              <span className="font-semibold">{deleteTarget.label}</span>? This
+              action cannot be undone.
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="px-5 py-2.5 border rounded-lg hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 rounded-lg disabled:opacity-50"
+              >
+                {deleting && <Loader2 className="animate-spin" size={16} />}
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
+  );
+}
+
+/* ============================================================
+   ACTION BUTTONS
+============================================================ */
+
+function ActionButtons({
+  viewHref,
+  editHref,
+  onDelete,
+}: {
+  viewHref: string;
+  editHref: string;
+  onDelete: () => void;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <Link
+        href={viewHref}
+        className="inline-flex items-center gap-1 text-blue-600 hover:bg-blue-50 px-2.5 py-1.5 rounded-lg text-sm font-medium"
+      >
+        <Eye size={15} /> View
+      </Link>
+      <Link
+        href={editHref}
+        className="inline-flex items-center gap-1 text-green-600 hover:bg-green-50 px-2.5 py-1.5 rounded-lg text-sm font-medium"
+      >
+        <Pencil size={15} /> Edit
+      </Link>
+      <button
+        onClick={onDelete}
+        className="inline-flex items-center gap-1 text-red-600 hover:bg-red-50 px-2.5 py-1.5 rounded-lg text-sm font-medium"
+      >
+        <Trash2 size={15} /> Delete
+      </button>
+    </div>
+  );
+}
+
+/* ============================================================
+   TABLES
+============================================================ */
+
+function StudentTable({
+  students,
+  onDelete,
+}: {
+  students: Student[];
+  onDelete: (id: string, label: string) => void;
+}) {
+  if (students.length === 0) {
+    return (
+      <div className="py-16 text-center text-gray-500">
+        <p className="text-lg font-medium">No students found.</p>
+        <p className="text-sm mt-1">Try adjusting your search or filters.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[900px]">
+        <thead className="bg-gray-50">
+          <tr className="border-b">
+            <th className="text-left py-3 px-4">Name</th>
+            <th className="text-left">Student Code</th>
+            <th className="text-left">Admission No.</th>
+            <th className="text-left">Gender</th>
+            <th className="text-left">Grade</th>
+            <th className="text-left">Section</th>
+            <th className="text-left">School</th>
+            <th className="text-left">Status</th>
+            <th className="text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {students.map((student) => (
+            <tr key={student.id} className="border-b hover:bg-gray-50 transition">
+              <td className="py-3 px-4">
+                <Link
+                  href={`/lsp/students/${student.id}`}
+                  className="font-semibold text-blue-600 hover:underline"
+                >
+                  {student.full_name}
+                </Link>
+              </td>
+              <td>{student.student_code}</td>
+              <td>{student.admission_number}</td>
+              <td className="capitalize">{student.gender}</td>
+              <td>{student.grade}</td>
+              <td>{student.section}</td>
+              <td>{student.school || '-'}</td>
+              <td>
+                <StatusBadge status={student.status} />
+              </td>
+              <td>
+                <ActionButtons
+                  viewHref={`/lsp/students/${student.id}`}
+                  editHref={`/lsp/students/edit/${student.id}`}
+                  onDelete={() => onDelete(student.id, student.full_name)}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SchoolTable({
+  schools,
+  onDelete,
+}: {
+  schools: School[];
+  onDelete: (id: string, label: string) => void;
+}) {
+  if (schools.length === 0) {
+    return (
+      <div className="py-16 text-center text-gray-500">
+        <p className="text-lg font-medium">No schools found.</p>
+        <p className="text-sm mt-1">Try adjusting your search.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1000px]">
+        <thead className="bg-gray-50">
+          <tr className="border-b">
+            <th className="text-left py-3 px-4">School Name</th>
+            <th className="text-left">Municipality</th>
+            <th className="text-left">District</th>
+            <th className="text-left">Province</th>
+            <th className="text-left">Principal</th>
+            <th className="text-left">Phone</th>
+            <th className="text-left">Students</th>
+            <th className="text-left">Status</th>
+            <th className="text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schools.map((school) => (
+            <tr key={school.id} className="border-b hover:bg-gray-50 transition">
+              <td className="py-3 px-4">
+                <Link
+                  href={`/lsp/schools/${school.id}`}
+                  className="font-semibold text-blue-600 hover:underline"
+                >
+                  {school.name}
+                </Link>
+              </td>
+              <td>{school.municipality || '-'}</td>
+              <td>{school.district || '-'}</td>
+              <td>{school.province || '-'}</td>
+              <td>{school.principal_name || '-'}</td>
+              <td>{school.phone || '-'}</td>
+              <td>{school.students}</td>
+              <td>
+                <StatusBadge status={school.is_active ? 'active' : 'inactive'} />
+              </td>
+              <td>
+                <ActionButtons
+                  viewHref={`/lsp/schools/${school.id}`}
+                  editHref={`/lsp/schools/edit/${school.id}`}
+                  onDelete={() => onDelete(school.id, school.name)}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SponsorTable({
+  sponsors,
+  sponsorStudentCount,
+  onDelete,
+}: {
+  sponsors: Sponsor[];
+  sponsorStudentCount: Record<string, number>;
+  onDelete: (id: string, label: string) => void;
+}) {
+  if (sponsors.length === 0) {
+    return (
+      <div className="py-16 text-center text-gray-500">
+        <p className="text-lg font-medium">No sponsors found.</p>
+        <p className="text-sm mt-1">Try adjusting your search or filters.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1000px]">
+        <thead className="bg-gray-50">
+          <tr className="border-b">
+            <th className="text-left py-3 px-4">Sponsor</th>
+            <th className="text-left">Organization</th>
+            <th className="text-left">Country</th>
+            <th className="text-left">Phone</th>
+            <th className="text-left">Email</th>
+            <th className="text-left">Sponsor Type</th>
+            <th className="text-left">Sponsored Students</th>
+            <th className="text-left">Status</th>
+            <th className="text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sponsors.map((sponsor) => (
+            <tr key={sponsor.id} className="border-b hover:bg-gray-50 transition">
+              <td className="py-3 px-4">
+                <Link
+                  href={`/lsp/sponsors/${sponsor.id}`}
+                  className="font-semibold text-blue-600 hover:underline"
+                >
+                  {sponsor.full_name}
+                </Link>
+              </td>
+              <td>{sponsor.organization_name || '-'}</td>
+              <td>{sponsor.country || '-'}</td>
+              <td>{sponsor.phone || '-'}</td>
+              <td>{sponsor.email || '-'}</td>
+              <td className="capitalize">{sponsor.sponsor_type || '-'}</td>
+              <td>{sponsorStudentCount[sponsor.id] || 0}</td>
+              <td>
+                <StatusBadge status={sponsor.status || ''} />
+              </td>
+              <td>
+                <ActionButtons
+                  viewHref={`/lsp/sponsors/${sponsor.id}`}
+                  editHref={`/lsp/sponsors/edit/${sponsor.id}`}
+                  onDelete={() => onDelete(sponsor.id, sponsor.full_name)}
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function SponsorshipTable({
+  sponsorships,
+  onDelete,
+}: {
+  sponsorships: Sponsorship[];
+  onDelete: (id: string, label: string) => void;
+}) {
+  if (sponsorships.length === 0) {
+    return (
+      <div className="py-16 text-center text-gray-500">
+        <p className="text-lg font-medium">No sponsorships found.</p>
+        <p className="text-sm mt-1">Try adjusting your search or filters.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[900px]">
+        <thead className="bg-gray-50">
+          <tr className="border-b">
+            <th className="text-left py-3 px-4">Student</th>
+            <th className="text-left">Sponsor</th>
+            <th className="text-left">Start Date</th>
+            <th className="text-left">End Date</th>
+            <th className="text-left">Monthly Amount</th>
+            <th className="text-left">Status</th>
+            <th className="text-left">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {sponsorships.map((item) => (
+            <tr key={item.id} className="border-b hover:bg-gray-50 transition">
+              <td className="py-3 px-4">
+                <Link href={`/lsp/sponsorships/${item.id}`}>
+                  <span className="font-semibold text-blue-600 hover:underline">
+                    {item.student_name}
+                  </span>
+                </Link>
+              </td>
+              <td>{item.sponsor_name}</td>
+              <td>{item.sponsorship_start || '-'}</td>
+              <td>{item.sponsorship_end || '-'}</td>
+              <td>Rs. {Number(item.monthly_amount || 0).toLocaleString()}</td>
+              <td>
+                <StatusBadge status={item.status} />
+              </td>
+              <td>
+                <ActionButtons
+                  viewHref={`/lsp/sponsorships/${item.id}`}
+                  editHref={`/lsp/sponsorships/edit/${item.id}`}
+                  onDelete={() =>
+                    onDelete(item.id, `${item.student_name}'s sponsorship`)
+                  }
+                />
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: string }) {
+  const isActive = status === 'active';
+  return (
+    <span
+      className={`px-3 py-1 rounded-full text-xs font-semibold ${
+        isActive
+          ? 'bg-green-100 text-green-700'
+          : 'bg-red-100 text-red-700'
+      }`}
+    >
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
   );
 }

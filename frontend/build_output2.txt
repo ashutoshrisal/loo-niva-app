@@ -1,0 +1,86 @@
+﻿
+> loo-niva-frontend@1.0.0 build
+> next build
+
+  Γû▓ Next.js 14.2.5
+  - Environments: .env.local
+
+   Creating an optimized production build ...
+ Γ£ô Compiled successfully
+   Linting and checking validity of types ...
+   Collecting page data ...
+   Generating static pages (0/32) ...
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+API URL USED: https://loo-niva-app-1.onrender.com/api
+   Generating static pages (8/32) 
+   Generating static pages (16/32) 
+   Generating static pages (24/32) 
+ Γ£ô Generating static pages (32/32)
+   Finalizing page optimization ...
+   Collecting build traces ...
+
+Route (app)                              Size     First Load JS
+Γöî Γùï /                                    7.21 kB         101 kB
+Γö£ Γùï /_not-found                          879 B          88.2 kB
+Γö£ Γùï /activities                          5.79 kB         124 kB
+Γö£ ╞Æ /activities/[id]                     1.41 kB         123 kB
+Γö£ Γùï /activities/add                      1.58 kB         124 kB
+Γö£ ╞Æ /activities/edit/[id]                1.62 kB         124 kB
+Γö£ Γùï /beneficiaries                       4.74 kB         123 kB
+Γö£ ╞Æ /beneficiaries/[id]                  4.17 kB         123 kB
+Γö£ Γùï /beneficiaries/add                   4.63 kB         123 kB
+Γö£ ╞Æ /beneficiaries/edit/[id]             4.75 kB         123 kB
+Γö£ Γùï /calendar                            73.2 kB         192 kB
+Γö£ Γùï /dashboard                           8.11 kB         241 kB
+Γö£ Γùï /dashboard/gallery                   3.06 kB         125 kB
+Γö£ Γùï /documents                           2 kB            124 kB
+Γö£ Γùï /gallery                             3.9 kB         98.1 kB
+Γö£ Γùï /login                               4.7 kB          116 kB
+Γö£ Γùï /lsp                                 6.4 kB          130 kB
+Γö£ Γùï /lsp/attendance                      3.73 kB         122 kB
+Γö£ Γùï /lsp/documents                       148 B          87.5 kB
+Γö£ Γùï /lsp/reports                         148 B          87.5 kB
+Γö£ Γùï /lsp/schools                         4.29 kB         123 kB
+Γö£ ╞Æ /lsp/schools/[id]                    1.58 kB         124 kB
+Γö£ Γùï /lsp/schools/add                     4.06 kB         122 kB
+Γö£ ╞Æ /lsp/schools/edit/[id]               4.14 kB         123 kB
+Γö£ Γùï /lsp/sponsors                        1.59 kB         120 kB
+Γö£ ╞Æ /lsp/sponsors/[id]                   1.48 kB         123 kB
+Γö£ Γùï /lsp/sponsors/add                    1.58 kB         113 kB
+Γö£ ╞Æ /lsp/sponsors/edit/[id]              1.65 kB         113 kB
+Γö£ Γùï /lsp/sponsorships                    1.44 kB         120 kB
+Γö£ ╞Æ /lsp/sponsorships/[id]               1.53 kB         124 kB
+Γö£ Γùï /lsp/sponsorships/add                1.7 kB          113 kB
+Γö£ ╞Æ /lsp/sponsorships/edit/[id]          1.59 kB         124 kB
+Γö£ Γùï /lsp/students                        1.44 kB         120 kB
+Γö£ ╞Æ /lsp/students/[id]                   2.13 kB         121 kB
+Γö£ Γùï /lsp/students/add                    1.68 kB         113 kB
+Γö£ ╞Æ /lsp/students/edit/[id]              1.85 kB         113 kB
+Γö£ Γùï /projects                            5.19 kB         124 kB
+Γö£ ╞Æ /projects/[id]                       2.84 kB         125 kB
+Γö£ Γùï /projects/add                        4.77 kB         123 kB
+Γö£ ╞Æ /projects/edit/[id]                  4.76 kB         123 kB
+Γö£ Γùï /reports                             6.15 kB         228 kB
+Γö£ ╞Æ /reports/[id]                        4.17 kB         123 kB
+Γö£ Γùï /reports/add                         4.63 kB         123 kB
+Γö£ ╞Æ /reports/edit/[id]                   4.75 kB         123 kB
+Γö£ Γùï /settings                            6.26 kB         125 kB
+Γöö Γùï /users                               6.79 kB         125 kB
++ First Load JS shared by all            87.4 kB
+  Γö£ chunks/7023-206cb4933f2b80be.js      31.7 kB
+  Γö£ chunks/fd9d1056-cfaccfb9078d7523.js  53.6 kB
+  Γöö other shared chunks (total)          2.01 kB
+
+
+Γùï  (Static)   prerendered as static content
+╞Æ  (Dynamic)  server-rendered on demand
+

@@ -1,8 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import api from '@/lib/api';
+import { useAuth } from '@/context/AuthContext';
 import {
   Plus,
   MapPin,
@@ -10,6 +12,9 @@ import {
   CalendarDays,
   FolderKanban,
   X,
+  Eye,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 
 type Activity = {
@@ -27,11 +32,20 @@ type Activity = {
 };
 
 export default function ActivitiesPage() {
+  const { user } = useAuth();
   const [items, setItems] = useState<Activity[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Activity | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [notice, setNotice] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const canManage =
+    user?.role === 'super_admin' ||
+    user?.role === 'project_manager' ||
+    user?.role === 'field_staff';
 
  const [form, setForm] = useState({
   project_id: '',
@@ -125,10 +139,31 @@ export default function ActivitiesPage() {
       budget: '',
     });
 
-    await load();
+await load();
 
   } finally {
     setSubmitting(false);
+  }
+}
+
+  async function handleDelete() {
+  if (!deleteTarget || deleting) return;
+
+  setDeleting(true);
+  setNotice(null);
+
+  try {
+    await api.delete(`/activities/${deleteTarget.id}`);
+    setItems((prev) => prev.filter((a) => a.id !== deleteTarget.id));
+    setDeleteTarget(null);
+    setNotice({ type: 'success', text: 'Activity deleted successfully.' });
+  } catch (err: any) {
+    setNotice({
+      type: 'error',
+      text: err?.response?.data?.message || 'Failed to delete activity.',
+    });
+  } finally {
+    setDeleting(false);
   }
 }
 
@@ -157,10 +192,22 @@ export default function ActivitiesPage() {
             <h2 className="text-2xl font-bold">Recent Activities</h2>
             <p className="text-gray-500">View and manage all recorded activities.</p>
           </div>
-          <button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
+<button onClick={() => setShowForm(true)} className="btn-primary flex items-center gap-2">
             <Plus size={18} /> Record Activity
           </button>
         </div>
+
+        {notice && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-medium ${
+              notice.type === 'success'
+                ? 'border-green-200 bg-green-50 text-green-700'
+                : 'border-red-200 bg-red-50 text-red-700'
+            }`}
+          >
+            {notice.text}
+          </div>
+        )}
 
         {loading ? (
           <p className="text-gray-400">Loading...</p>
@@ -213,11 +260,39 @@ export default function ActivitiesPage() {
                     {a.project_title}
                   </div>
                 )} 
-                {a.budget && (
+{a.budget && (
   <div className="mt-3 text-green-700 font-semibold">
     Budget: NPR {Number(a.budget).toLocaleString()}
   </div>
 )}
+
+                <div className="mt-5 flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/activities/${a.id}`}
+                    className="btn-primary !px-4 !py-2 text-sm"
+                  >
+                    <Eye size={16} /> View
+                  </Link>
+
+                  {canManage && (
+                    <Link
+                      href={`/activities/edit/${a.id}`}
+                      className="btn-primary !px-4 !py-2 text-sm !bg-amber-500 hover:!bg-amber-600"
+                    >
+                      <Pencil size={16} /> Edit
+                    </Link>
+                  )}
+
+                  {canManage && (
+                    <button
+                      type="button"
+                      onClick={() => setDeleteTarget(a)}
+                      className="btn-primary !px-4 !py-2 text-sm !bg-red-500 hover:!bg-red-600"
+                    >
+                      <Trash2 size={16} /> Delete
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
 
@@ -359,10 +434,44 @@ value={form.budget}
 onChange={(e)=>setForm({...form,budget:e.target.value})}
 />
 
-            <button type="submit" className="btn-primary w-full" disabled={submitting}>
+<button type="submit" className="btn-primary w-full" disabled={submitting}>
               {submitting ? 'Saving...' : 'Save Activity'}
             </button>
           </form>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4 z-50">
+          <div className="card w-full max-w-md">
+            <h3 className="font-semibold text-lg">Delete Activity</h3>
+            <p className="mt-2 text-gray-600">
+              Are you sure you want to delete this activity?
+            </p>
+            <p className="mt-1 text-sm font-medium text-gray-800">
+              {deleteTarget.title}
+            </p>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+                className="rounded-xl border border-gray-200 px-5 py-3 font-semibold text-gray-700 hover:bg-gray-50"
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="btn-primary !bg-red-500 hover:!bg-red-600"
+              >
+                {deleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

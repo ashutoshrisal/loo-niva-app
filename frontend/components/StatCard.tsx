@@ -31,10 +31,11 @@ export default function StatCard({
           glow: "hover:shadow-emerald-200",
         };
 
-  return (
+return (
     <div
       className={`
         group
+        cursor-pointer
         bg-white dark:bg-slate-900
         rounded-3xl
         p-6

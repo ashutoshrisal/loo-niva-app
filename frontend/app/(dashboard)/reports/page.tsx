@@ -348,7 +348,7 @@ export default function ReportsPage() {
     <>
       <Navbar title="Organization Reports" />
 
-      <div className="p-8 space-y-8">
+<div className="p-8 space-y-8">
 
         {/* ==========================
             HEADER

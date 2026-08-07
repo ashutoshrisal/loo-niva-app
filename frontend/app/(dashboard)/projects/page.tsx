@@ -5,11 +5,19 @@ import Navbar from '@/components/Navbar';
 import ProjectCard from '@/components/ProjectCard';
 import api from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { Plus, Search, X } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import Link from 'next/link';
 
-const CATEGORIES = ['education', 'participation', 'advocacy', 'protection', 'other'];
-const STATUSES = ['planned', 'active', 'on_hold', 'completed', 'cancelled'];
+const CATEGORIES = [
+  'education',
+  'child_protection',
+  'health',
+  'livelihood',
+  'advocacy',
+  'emergency',
+  'other',
+];
+const STATUSES = ['planning', 'active', 'on_hold', 'completed', 'cancelled'];
 
 export default function ProjectsPage() {
   const { user } = useAuth();
@@ -17,38 +25,30 @@ export default function ProjectsPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [status, setStatus] = useState('');
-  const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [form, setForm] = useState({
-    title: '', category: 'education', description: '', target_location: '',
-    funding_source: '', budget: '', start_date: '', end_date: '',
-  });
+  const [error, setError] = useState('');
 
   const canManage = user?.role === 'super_admin' || user?.role === 'project_manager';
 
   async function load() {
     setLoading(true);
+    setError('');
     try {
       const params: any = {};
       if (search) params.search = search;
       if (category) params.category = category;
       if (status) params.status = status;
       const { data } = await api.get('/projects', { params });
-      setProjects(data.data);
+      setProjects(data.data || []);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.response?.data?.message || 'Unable to load projects.');
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { load(); }, [search, category, status]);
-
-  async function handleCreate(e: React.FormEvent) {
-    e.preventDefault();
-    await api.post('/projects', { ...form, budget: Number(form.budget) || 0 });
-    setShowForm(false);
-    setForm({ title: '', category: 'education', description: '', target_location: '', funding_source: '', budget: '', start_date: '', end_date: '' });
-    load();
-  }
+useEffect(() => { load(); }, [search, category, status]);
 
   return (
     <>
@@ -112,8 +112,13 @@ export default function ProjectsPage() {
           )}
         </div>
 
-        {loading ? (
+{loading ? (
           <p className="text-gray-400">Loading projects...</p>
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl p-6">
+            <p className="font-semibold mb-1">Unable to load projects</p>
+            <p className="text-sm">{error}</p>
+          </div>
         ) : projects.length ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {projects.map((p) => <ProjectCard key={p.id} project={p} />)}

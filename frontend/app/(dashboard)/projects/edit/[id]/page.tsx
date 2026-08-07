@@ -7,17 +7,16 @@ import api from '@/lib/api';
 
 const CATEGORIES = [
   'education',
-  'participation',
-  'advocacy',
-  'protection',
+  'child_protection',
   'health',
   'livelihood',
+  'advocacy',
   'emergency',
   'other',
 ];
 
 const STATUSES = [
-  'planned',
+  'planning',
   'active',
   'on_hold',
   'completed',
@@ -34,16 +33,16 @@ export default function EditProjectPage() {
 
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({
+const [form, setForm] = useState({
+    project_code: '',
     title: '',
     category: 'education',
     description: '',
-    target_location: '',
-    funding_source: '',
+    donor_name: '',
     budget: '',
     start_date: '',
     end_date: '',
-    status: 'planned',
+    status: 'planning',
   });
 
   useEffect(() => {
@@ -59,15 +58,15 @@ export default function EditProjectPage() {
       const p = res.data.data;
 
       setForm({
+        project_code: p.project_code || '',
         title: p.title || '',
         category: p.category || 'education',
         description: p.description || '',
-        target_location: p.target_location || '',
-        funding_source: p.funding_source || '',
+        donor_name: p.donor_name || '',
         budget: String(p.budget || ''),
         start_date: p.start_date?.substring(0,10) || '',
         end_date: p.end_date?.substring(0,10) || '',
-        status: p.status || 'planned',
+        status: p.status || 'planning',
       });
 
     } catch (err) {
@@ -232,15 +231,16 @@ export default function EditProjectPage() {
   <div>
 
     <label className="block font-medium mb-2">
-      Target Location
+      Project Code
     </label>
 
     <input
       type="text"
-      name="target_location"
-      value={form.target_location}
+      name="project_code"
+      value={form.project_code}
       onChange={handleChange}
       className="w-full border rounded-xl p-3"
+      placeholder="PRJ-001"
     />
 
   </div>
@@ -248,15 +248,16 @@ export default function EditProjectPage() {
   <div>
 
     <label className="block font-medium mb-2">
-      Funding Source
+      Donor Name
     </label>
 
     <input
       type="text"
-      name="funding_source"
-      value={form.funding_source}
+      name="donor_name"
+      value={form.donor_name}
       onChange={handleChange}
       className="w-full border rounded-xl p-3"
+      placeholder="UNICEF"
     />
 
   </div>

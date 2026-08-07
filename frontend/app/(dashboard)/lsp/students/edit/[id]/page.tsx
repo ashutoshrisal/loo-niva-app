@@ -28,7 +28,81 @@ export default function EditStudentPage() {
     section: '',
     school_id: '',
     status: 'active',
+    photo_url: '',
   });
+
+  // Image upload state
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string>('');
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState('');
+
+  const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+  const MAX_IMAGE_SIZE = 25 * 1024 * 1024; // 25MB
+
+  function validateImage(file: File): string {
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      return 'Unsupported file type. Please upload a JPG, PNG, or WEBP image.';
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      return 'Image is too large. Maximum size is 25MB.';
+    }
+    return '';
+  }
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] || null;
+    setSelectedFile(file);
+    setUploadError('');
+    setForm((prev) => ({ ...prev, photo_url: '' }));
+
+    if (!file) {
+      setPreviewUrl('');
+      return;
+    }
+
+    const err = validateImage(file);
+    if (err) {
+      setUploadError(err);
+      setSelectedFile(null);
+      setPreviewUrl('');
+      e.target.value = '';
+      return;
+    }
+
+    setPreviewUrl(URL.createObjectURL(file));
+  }
+
+  async function handleUploadImage() {
+    if (!selectedFile) {
+      setUploadError('Please choose an image first.');
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+
+    try {
+      setUploading(true);
+      setUploadError('');
+
+      const res = await api.post('/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+
+      const url = res.data?.data?.url;
+      if (!url) {
+        throw new Error('Upload succeeded but no URL was returned.');
+      }
+
+      setForm((prev) => ({ ...prev, photo_url: url }));
+    } catch (err: any) {
+      console.error('Image upload failed:', err);
+      setUploadError(err?.response?.data?.message || 'Failed to upload image. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  }
 
   useEffect(() => {
     loadPage();
@@ -54,7 +128,13 @@ export default function EditStudentPage() {
         section: student.section || '',
         school_id: student.school_id ? String(student.school_id) : '',
         status: student.status || 'active',
+        photo_url: student.photo_url || '',
       });
+
+      // Show existing image as the current preview, if present.
+      if (student.photo_url) {
+        setPreviewUrl(student.photo_url);
+      }
     } catch (err) {
       console.error(err);
       alert('Failed to load student.');
@@ -75,12 +155,18 @@ export default function EditStudentPage() {
   async function updateStudent(e: React.FormEvent) {
     e.preventDefault();
 
+    if (uploading) {
+      alert('Please wait for the image upload to finish.');
+      return;
+    }
+
     try {
       setLoading(true);
 
       await api.put(`/students/${id}`, {
         ...form,
         school_id: form.school_id || null,
+        photo_url: form.photo_url || null,
       });
 
       alert('Student updated successfully.');
@@ -205,6 +291,65 @@ export default function EditStudentPage() {
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
         </select>
+
+        {/* Profile Photo */}
+
+        <div className="border rounded-xl p-4">
+
+          <label className="block mb-2 font-medium">
+            Profile Photo
+          </label>
+
+          <input
+            type="file"
+            accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+            onChange={handleFileChange}
+            className="w-full text-sm text-gray-600 file:mr-4 file:px-4 file:py-2 file:rounded file:border-0 file:bg-blue-600 file:text-white file:font-semibold hover:file:bg-blue-700"
+          />
+
+          <p className="mt-2 text-xs text-gray-500">
+            JPG, PNG or WEBP — max 25MB (optional)
+          </p>
+
+          {previewUrl && (
+            <div className="mt-3 flex items-center gap-4">
+              <img
+                src={previewUrl}
+                alt="Preview"
+                className="w-20 h-20 rounded-full object-cover border border-gray-200"
+              />
+
+              {!form.photo_url && !uploading && (
+                <button
+                  type="button"
+                  onClick={handleUploadImage}
+                  className="px-4 py-2 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm"
+                >
+                  Upload Image
+                </button>
+              )}
+
+              {uploading && (
+                <span className="text-sm text-gray-500">
+                  Uploading...
+                </span>
+              )}
+
+              {form.photo_url && (
+                <span className="text-sm text-green-600 font-medium">
+                  Image uploaded
+                </span>
+              )}
+            </div>
+          )}
+
+          {uploadError && (
+            <p className="mt-2 text-sm text-red-600 font-medium">
+              {uploadError}
+            </p>
+          )}
+
+        </div>
 
         <div className="flex justify-end gap-3">
 

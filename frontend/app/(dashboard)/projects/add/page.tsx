@@ -7,11 +7,10 @@ import api from '@/lib/api';
 
 const CATEGORIES = [
   'education',
-  'participation',
-  'advocacy',
-  'protection',
+  'child_protection',
   'health',
   'livelihood',
+  'advocacy',
   'emergency',
   'other',
 ];
@@ -97,7 +96,7 @@ export default function AddProjectPage() {
     <>
       <Navbar title="Add Project" />
 
-      <div className="max-w-6xl mx-auto p-8">
+<div className="max-w-6xl mx-auto p-8">
 
         <div className="rounded-3xl bg-gradient-to-r from-indigo-700 via-blue-600 to-cyan-500 text-white p-8 shadow-xl mb-8">
 
@@ -288,7 +287,7 @@ export default function AddProjectPage() {
             </div>
 
           </div>
-                 <div className="flex justify-end gap-4 pt-4">
+<div className="flex justify-end gap-4 pt-4">
 
             <button
               type="button"

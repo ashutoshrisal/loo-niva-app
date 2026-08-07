@@ -184,12 +184,12 @@ const response = await fetch(
               Progress
             </a>
 
-            <a
-              href="#gallery"
+<Link
+              href="/gallery"
               className="text-sm font-medium text-gray-600 transition hover:text-indigo-600"
             >
               Gallery
-            </a>
+            </Link>
 
             <a
               href="#contact"
@@ -261,13 +261,13 @@ const response = await fetch(
                 Progress
               </a>
 
-              <a
-                href="#gallery"
+<Link
+                href="/gallery"
                 onClick={() => setMobileMenu(false)}
                 className="font-medium text-gray-700"
               >
                 Gallery
-              </a>
+              </Link>
 
               <a
                 href="#contact"

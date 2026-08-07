@@ -4,6 +4,7 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import { useAuth } from '@/context/AuthContext';
+import { SidebarProvider } from '@/context/SidebarContext';
 
 export default function DashboardGroupLayout({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -21,17 +22,19 @@ export default function DashboardGroupLayout({ children }: { children: React.Rea
     );
   }
 
-  return (
-  <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
+return (
+  <SidebarProvider>
+    <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 transition-colors duration-300">
 
-    <Sidebar />
+      <Sidebar />
 
-    <main className="flex-1 overflow-x-hidden">
+      <main className="flex-1 overflow-x-hidden">
 
-      {children}
+        {children}
 
-    </main>
+      </main>
 
-  </div>
+    </div>
+  </SidebarProvider>
 );
 }

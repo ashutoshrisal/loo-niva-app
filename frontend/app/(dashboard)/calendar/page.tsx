@@ -45,7 +45,7 @@ export default function CalendarPage() {
     <>
       <Navbar title="Calendar" />
 
-      <div className="p-4 md:p-8 space-y-8">
+<div className="p-8 space-y-8">
 
         {/* Hero */}
 
@@ -99,9 +99,9 @@ export default function CalendarPage() {
 
         </div>
 
-        {/* Calendar */}
+{/* Calendar */}
 
-        <div className="card p-6">
+<div className="card p-6">
 
           <FullCalendar
             plugins={[dayGridPlugin, interactionPlugin]}
