@@ -47,6 +47,7 @@ app.use(
       
       'https://loo-niva-app-b2oy.vercel.app',
       'http://192.168.1.17:3000',
+      'https://loo-niva-app-eidi.vercel.app',
     ],
     credentials: true,
   })
